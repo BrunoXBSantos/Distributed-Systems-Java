@@ -1,6 +1,7 @@
 import java.util.Calendar; 
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.Set;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.io.BufferedReader;
@@ -9,20 +10,25 @@ import java.io.PrintWriter;
 import java.io.IOException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.StringTokenizer;
+import java.util.LinkedList;
 
 
 
 class ClientData{
-	private String password;
-	private int id;
-	private Calendar registerDate;
+	private String password;	// password
+	private int id;			// id do client
+	private int contacts;   // contactos que conhece
+	private int reportedCases;	// casos reportados dos contactos
+	private Calendar registerDate;		// data de registo
 	private ReentrantLock lock;
 
 	public ClientData(String password, int id){
 		this.password=password;
 		this.id=id;
+		this.contacts = 150;
 		this.registerDate=new GregorianCalendar(); // vai buscar a data atual
 		this.lock = new ReentrantLock();
+		this.reportedCases = 0;
 	}
 
 	// devolve a password
@@ -32,6 +38,26 @@ class ClientData{
 
 	public Calendar getRegisterDate(){
 		return this.registerDate;   // this.registerDate.clone();
+  	}
+
+  	// numero de contactos
+  	public int getContacts(){
+  		return this.contacts;
+  	}
+
+  	// modifica o numero de casos reportados
+  	public void setReportedCases(int reportCases){
+  		this.reportedCases = reportCases;
+  	}
+
+  	// devolve o num de casos reportados
+  	public int getReportedCases(){
+  		return this.reportedCases;
+  	}
+
+  	// adicionar casos reportados
+  	public void addReportCases(int cases){
+  		this.reportedCases += cases;
   	}
 
   	public void lock(){
@@ -103,17 +129,92 @@ class DataBaseServer{
 			this.dataBaseServer.unlock();
 			return false;
 		}
+
 	}
+
+	// total de casos reportados
+	public int totalCasesReported(){
+
+		this.dataBaseServer.lock();
+	    // after locking the dataBaseServer we know that no account can be created or deleted, and thus `locked` is all existing accounts
+		Set<String> locked = this.clientsList.keySet();
+
+		// lock all accounts
+		for(String name : locked){
+			this.clientsList.get(name).lock();
+		}
+
+		this.dataBaseServer.unlock(); 
+		// all accounts are locked: we can release the bank lock
+
+		// compute the total cases
+		int total = 0;
+		for(String name : locked){
+			ClientData clientData = this.clientsList.get(name);
+			total += clientData.getReportedCases();
+			clientData.unlock();
+		}
+
+		return total;
+	}
+
+	// proporcao de casos
+	public double proportionCasesReported(){
+
+		this.dataBaseServer.lock();
+	    // after locking the dataBaseServer we know that no account can be created or deleted, and thus `locked` is all existing accounts
+		Set<String> locked = this.clientsList.keySet();
+
+		// lock all accounts
+		for(String name : locked){
+			this.clientsList.get(name).lock();
+		}
+
+		this.dataBaseServer.unlock(); 
+		// all accounts are locked: we can release the bank lock
+
+		// compute the total cases
+		int totalCases = 0;
+		int totalContacts = 0;
+		for(String name : locked){
+			ClientData clientData = this.clientsList.get(name);
+			totalCases += clientData.getReportedCases();
+			totalContacts += clientData.getContacts();
+			clientData.unlock();
+		}
+
+		return (double) totalCases / totalContacts;
+	}
+
+
+	// modificar casos reportados de um cliente
+	public boolean setReportedCases(String name, int newCases){
+		this.dataBaseServer.lock();
+		if(this.clientsList.containsKey(name)){
+			ClientData clientData = this.clientsList.get(name);
+			clientData.lock();
+			this.dataBaseServer.unlock();
+			clientData.setReportedCases(newCases);
+			clientData.unlock();
+			return true;
+		}
+		else{
+			this.dataBaseServer.unlock();
+			return false;
+		}
+	}	
 
 }
 
 class ClientHandler implements Runnable{
 	private Socket socket;  // o socket devolvido por accept
 	private DataBaseServer dataBaseServer;
+	private ReceiveCasesClient receiveCasesClient;
 
-	public ClientHandler(Socket socket, DataBaseServer dataBaseServer){
+	public ClientHandler(Socket socket, DataBaseServer dataBaseServer, ReceiveCasesClient receiveCasesClient){
 		this.socket=socket;
 		this.dataBaseServer = dataBaseServer;
+		this.receiveCasesClient = receiveCasesClient;
 	} 
 
 	public void run(){
@@ -167,12 +268,13 @@ class ClientHandler implements Runnable{
 
 			while(conected){
 				String msg = in.readLine();
-				if(msg == null){
+				if(msg == null || msg.equals("quit")){
 					conected = false;
 				}
 				else{
-					System.out.println("receive msg: " + msg);
-					out.println(msg.toUpperCase());
+					this.receiveCasesClient.putCases(msg);
+					System.out.println("casos: " + msg + " name: " + name);
+					this.dataBaseServer.setReportedCases(name, Integer.parseInt(msg));
 				}
 			}		
 			System.out.println("Client Disconnected");	
@@ -192,11 +294,95 @@ class ClientHandler implements Runnable{
 
 
 
+// Contem as mensagens recebidas pelos clientes e os clientes ligados
+class ReceiveCasesClient{
+
+	private int connectedClients;    // lista de threads ligadas
+	private LinkedList<String> list;  // lista de casos recebidos pelo servidor
+	private int count;
+
+	public ReceiveCasesClient(){
+		this.list = new LinkedList<>();
+		this.connectedClients = 0;
+		this.count = 0;
+	}
+
+	public synchronized void putCases(String cases){
+		this.list.add(cases);
+
+		notifyAll();
+	}
+
+	public synchronized String getCases(){
+		String cases = null;
+		try{
+			while(this.list.size() == 0){
+				wait();
+			}
+
+			cases = this.list.getFirst();
+			System.out.println("debug");
+			if(count < connectedClients - 1){
+				this.count++;
+				wait();
+			}
+			else{
+				notifyAll();
+				this.list.removeFirst();
+			}
+
+			this.count = 0;
+
+		}
+		catch(Exception e){}
+		return cases;
+		
+	}
+	
+	public void decrementThreads(){
+		this.connectedClients--;
+	}
+
+	public void incrementThreads(){
+		this.connectedClients++;
+	}
+}
+
+class SendProportionHandler implements Runnable{
+	private Socket socket;    // socket
+	private Thread clientHandlerThread;	// thread com a comunicacao com o client
+	private ReceiveCasesClient receiveCasesClient;   // Lista de mensagens a enviar
+
+	public SendProportionHandler(Socket socket, Thread clientHandlerThread, ReceiveCasesClient receiveCasesClient){
+		this.socket = socket;
+		this.clientHandlerThread = clientHandlerThread;
+		this.receiveCasesClient = receiveCasesClient;
+	}
+
+	public void run(){
+		//Só envia para os clientes
+		try{
+			PrintWriter out = new PrintWriter(this.socket.getOutputStream(), true);
+			boolean flag = true;
+			while(flag){
+				String msg = this.receiveCasesClient.getCases();
+				out.println(msg);
+				if(!this.clientHandlerThread.isAlive()){
+					flag = false;
+					this.receiveCasesClient.decrementThreads();
+				}
+			}			
+		}
+		catch(Exception e){}
+	}
+
+}	
 
 class Server{
 	public static void main(String[] args){
 
 		DataBaseServer dataBaseServer = new DataBaseServer("Server");
+		ReceiveCasesClient receiveCasesClient  = new ReceiveCasesClient();
 
 		try{
 			int port;
@@ -217,10 +403,17 @@ class Server{
 				Socket socket = listener.accept();
 				System.out.println("new connection");
 
-				ClientHandler client = new ClientHandler(socket, dataBaseServer);
-				Thread t = new Thread(client);
-				t.start();
-				
+				// criacao das threads
+				ClientHandler client = new ClientHandler(socket, dataBaseServer, receiveCasesClient);
+				Thread clientHandlerThread = new Thread(client);
+				SendProportionHandler sendProportionHandler = new SendProportionHandler(socket, clientHandlerThread, receiveCasesClient);
+				Thread sendProportionThread = new Thread(sendProportionHandler);
+
+				//inicio
+				clientHandlerThread.start();
+				sendProportionThread.start();
+
+				receiveCasesClient.incrementThreads();
 			}	
 		}
 		catch(NumberFormatException e){
@@ -266,3 +459,48 @@ class Util{
 // primeira mensagem do cliente é a autenticacao?
 // depois o cliente comunica quantos casos ..
 // o servidor envia a todos os clientes liagados uma nova estimativa
+
+
+
+/*
+
+class DataBaseConnected{
+	private HashMap<String,Socket> clientsConnectedList;
+	private ReentrantLock dataBaseConnected;
+
+	public DataBaseConnected(){
+		this.clientsConnectedList = new HashMap<>();
+		this.dataBaseConnected = new ReentrantLock();
+	}
+
+	// adicionar um cliente à lista de clientes ligados
+	public boolean addClientConnected(String name, Socket socket){
+		this.dataBaseConnected.lock();
+		if(!this.clientsConnectedList.containsKey(name)){
+			this.clientsConnectedList.put(name,socket);
+			this.dataBaseConnected.unlock();
+			return true;
+		}
+		else{
+			this.dataBaseConnected.unlock();
+			return false;
+		}
+	}
+
+
+	// remover um cliente da lista de clientes ligados
+	public boolean removeClientConnected(String name){
+		this.dataBaseConnected.lock();
+		if(this.clientsConnectedList.containsKey(name)){
+			this.clientsConnectedList.remove(name);
+			this.dataBaseConnected.unlock();
+			return true;
+		}
+		else{
+			this.dataBaseConnected.unlock();
+			return false;
+		}
+	}
+}
+
+*/
