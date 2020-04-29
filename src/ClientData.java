@@ -56,7 +56,6 @@ class ClientData{
 
     // Obtem a proporcao media
     public double getProportion(){
-      System.out.println(this.getReportedCases());
       return ((double) this.reportedCases / this.contacts);
     }
 

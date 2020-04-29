@@ -36,6 +36,20 @@ class DataBaseServer{
 		return flag;
 	}
 
+	// ver o numero de contactos
+	public int getContacts(String name){
+		this.dataBaseServer.lock();
+		if(this.clientsList.containsKey(name)){
+			int n = this.clientsList.get(name).getContacts();
+			this.dataBaseServer.unlock();
+			return n;  // cliente criado
+		}
+		else{
+			this.dataBaseServer.unlock();
+			return -1;  // cliente já existe
+		}		
+	}
+
 	// cria um cliente, recebendo o nome e a pass
 	public boolean createClient(String name, String pass){
 		this.dataBaseServer.lock();
@@ -96,7 +110,6 @@ class DataBaseServer{
 			total += clientData.getProportion();
 			clientData.unlock();
 		}
-		//System.out.println("Debug2" + total);
 		return total / this.clientsList.size();
 	}
 

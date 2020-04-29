@@ -16,6 +16,7 @@ import java.util.concurrent.locks.Condition;
 
 
 class ClientHandler implements Runnable{
+	public static String CSI = "\u001B[";
 	private Socket socket;  // o socket devolvido por accept
 	private DataBaseServer dataBaseServer;
 	private ReceiveCasesList receiveCasesList;
@@ -27,77 +28,140 @@ class ClientHandler implements Runnable{
 	} 
 
 	public void run(){
-		boolean conected = true;
 		try{
-			BufferedReader in = new BufferedReader(
-				new InputStreamReader(this.socket.getInputStream()));
-			boolean autoFlush = true;
-			PrintWriter out = new PrintWriter(this.socket.getOutputStream(),autoFlush);
 
-			// Pergunta pelo nome e pela pass
-			String authQ = "Insira (username password): ";
-			out.println(authQ);
+		boolean conected = true;
+		BufferedReader in = new BufferedReader(
+			new InputStreamReader(this.socket.getInputStream()));
+		boolean autoFlush = true;
+		PrintWriter out = new PrintWriter(this.socket.getOutputStream(),autoFlush);
 
-			// recebe o username e a pass
-			String authR = in.readLine();
+		// Pergunta pelo nome e pela pass
+		String authQ = "\tInsira autenticacao (username password): ";
+		out.println(authQ);
 
-			StringTokenizer st = new StringTokenizer(authR, " ");
-			String name = st.nextToken();
-			String password = st.nextToken();
+		// recebe o username e a pass
+		String authR = in.readLine();
 
-			System.out.println("name: "+name + " pass: " + password);
-			
-			boolean existClient = this.dataBaseServer.existClient(name);
-			if(existClient){
-				// verifica a pass
-				boolean checkPassword = this.dataBaseServer.checkPassword(name, password);
-				if(checkPassword){
-					// pass correta
-					out.println("Autenticacao realizada com sucesso");
-				}
-				else{
-					out.println("Password errada! Tente novamente.");
-					conected = false;
+		StringTokenizer st = new StringTokenizer(authR, " ");
+		String name = st.nextToken();
+		String password = st.nextToken();
 
-				}
+		boolean existClient = this.dataBaseServer.existClient(name);
+		if(existClient){
+			// verifica a pass
+			boolean checkPassword = this.dataBaseServer.checkPassword(name, password);
+			if(checkPassword){
+				// pass correta
+				out.println("Autenticacao realizada com sucesso");
 			}
 			else{
-				out.println("Utilizador nao registado. (1 - Registar) (0 -  Sair)");
-				String msg = in.readLine();
-				int opcao = Integer.parseInt(msg);
-				if(opcao == 1){
-					this.dataBaseServer.createClient(name, password);
-					out.println("Autenticacao realizada com sucesso");
+				out.println("Password errada! Tente novamente.");
+				conected = false;
+
+			}
+		}
+
+		/*
+
+boolean flag = false;
+			do{
+				try{
+					int opcao = verifyNumberOption(msg);
 				}
-				else{
-					out.println("Obrigado!");
-					conected = false;
+				catch(NumberFormatException e){
+					System.out.println(e.getMessage());
+					
+				}
+				catch(NumberInvalidException e){
+					System.out.println(e.getMessage());
+				}
+			}
+			while(!flag);
+		*/
+
+
+		else{
+			out.println("Utilizador nao registado. (1 - Registar) (0 -  Sair)");
+			String msg = in.readLine();
+			boolean flagR = false;
+			int opcao = 0;
+			do{
+				try{
+						opcao = Integer.parseInt(msg);
+						flagR = true;
+				}
+				catch(NumberFormatException e){
+					out.println("Opcao tem que ser um numero inteiro. Introduza de novo: ");
+					msg = in.readLine();
 				}
 			}	
+			while(!flagR);
+			if(opcao == 1){
+				this.dataBaseServer.createClient(name, password);
+				out.println("Autenticacao realizada com sucesso");
+			}
+			else{
+				out.println("Obrigado!");
+				conected = false;
+			}
+		}
 
-			while(conected){
-				String msg = in.readLine();
-				if(msg == null || msg.equals("quit")){
-					conected = false;
+		System.out.print (CSI + "32" + "m");
+  	 	System.out.print ("\t" + name.toUpperCase() + " autenticado com sucesso!\n");
+    	System.out.println (CSI + "m");
+
+		while(conected){
+			String msg = in.readLine();
+			if(msg == null || msg.equals("quit")){
+				conected = false;
+			}
+			else{
+				int cases = 0;
+				boolean flagC = false;
+				do{
+					try{
+						cases = Util.verifyCases(msg,this.dataBaseServer.getContacts(name));
+						flagC = true;
+					}
+					catch(NumberFormatException e){
+						out.println(e.getMessage());
+						msg = in.readLine();
+					}
+					catch(NumberInvalidException e){
+						out.println(e.getMessage());
+						msg = in.readLine();
+					}	
 				}
-				else{
-					this.dataBaseServer.setReportedCases(name, Integer.parseInt(msg));
-					System.out.println("Debug1");
-					double avgProportion = this.dataBaseServer.avgProportion();
-					String msgSend = new String("Average Proportion Atual: " + avgProportion);
-					this.receiveCasesList.putCases(msgSend);
-					System.out.println("casos: " + msg + " name: " + name);
-				}
-			}		
-			System.out.println("Client Disconnected");	
-		
-			this.socket.shutdownInput();
-			this.socket.shutdownOutput();
-			this.socket.close();
-		}	
-		catch(IOException e){
-			conected = false;
-			e.printStackTrace();
+				while(!flagC);
+
+				this.dataBaseServer.setReportedCases(name, Integer.parseInt(msg));
+				float avgProportion = (float) this.dataBaseServer.avgProportion();
+				String avgProportionS = String.format("%.2f",avgProportion * 100);
+				String msgSend = new String("Average Proportion Atual: " + avgProportion + " -> " + avgProportionS + "%");
+				this.receiveCasesList.putCases(msgSend);
+				
+				System.out.print (CSI + "38" + "m");
+				System.out.print("\t" + name + ": " + msg + "/150");
+    			System.out.println (CSI + "m");
+    			System.out.print (CSI + "31" + "m");
+  	 			System.out.print ("\t" + msgSend + "\n");
+    			System.out.println (CSI + "m");
+			}
+		}
+
+		System.out.print (CSI + "31" + "m");		
+		System.out.println("\n\t" + name.toUpperCase() + " Disconnected");
+		System.out.println (CSI + "m");	
+	
+		this.socket.shutdownInput();
+		this.socket.shutdownOutput();
+		this.socket.close();
+
+		}
+
+		catch(Exception e){
+
 		}
 	}
 }
@@ -141,7 +205,6 @@ class ReceiveCasesList{
 			}
 
 			cases = this.list.getFirst();
-			System.out.println("debug");
 			if(count < connectedClients - 1){
 				this.count++;
 				this.notReadClient.await();
@@ -172,12 +235,12 @@ class ReceiveCasesList{
 
 class SendProportionHandler implements Runnable{
 	private Socket socket;    // socket
-	private Thread clientHandlerThread;	// thread com a comunicacao com o client
+	private Thread clientThread;	// thread com a comunicacao com o client
 	private ReceiveCasesList receiveCasesList;   // Lista de mensagens a enviar
 
-	public SendProportionHandler(Socket socket, Thread clientHandlerThread, ReceiveCasesList receiveCasesList){
+	public SendProportionHandler(Socket socket, Thread clientThread, ReceiveCasesList receiveCasesList){
 		this.socket = socket;
-		this.clientHandlerThread = clientHandlerThread;
+		this.clientThread = clientThread;
 		this.receiveCasesList = receiveCasesList;
 	}
 
@@ -189,7 +252,7 @@ class SendProportionHandler implements Runnable{
 			while(flag){
 				String msg = this.receiveCasesList.getCases();
 				out.println(msg);
-				if(!this.clientHandlerThread.isAlive()){
+				if(!this.clientThread.isAlive()){
 					flag = false;
 					this.receiveCasesList.decrementThreads();
 				}
@@ -205,49 +268,79 @@ class Server{
 
 		DataBaseServer dataBaseServer = new DataBaseServer("Server");
 		ReceiveCasesList receiveCasesList  = new ReceiveCasesList(); // recebe casos dos clientes
+		String CSI = "\u001B[";   // cores no terminal
+		ServerSocket listener = null;
+		int port = 3001;
+		// verificacao do numero de parametros de args
+		// É necessario a introduzao do numero da porta
+		if(args.length != 1){
+			System.out.println("Error! Necessário introduzir o numero da porta.");
+			System.exit(1);
+		}
 
 		try{
-			int port;
-			// verificacao do numero de parametros de args
-			// É necessario a introduzao do numero da porta
-			if(args.length != 1){
-				System.out.println("Error! Necessário introduzir o numero da porta.");
-				System.exit(1);
-			}
+			port = Util.verifyPort(args[0]);  // string para int do num da porta
+		}
+		catch(NumberPortInvalidException e){
+			System.out.println("Error! " + e.getMessage());
+			System.exit(1);
+		}
+		catch(NumberFormatException e){
+			System.out.println("Error! " + e.getMessage());
+			System.exit(1);
+		}
 
-			
-			port = Util.parseInt(args[0]);  // string para int do num da porta
+		try{
+			listener = new ServerSocket(port);  // socket, bind e listener
+		}
+		catch(IOException e){
+			System.out.println("Error creating the socket!");
+			System.exit(1);
+		}
 
-			ServerSocket listener = new ServerSocket(port);  // socket, bind e listener
 
+		System.out.print (CSI + "44" + "m");
+		System.out.println("\n\tServer initialized: " + listener.getLocalSocketAddress());
+    	System.out.print(CSI + "m");
+		System.out.print("\n");
 
-			while(true){
+		boolean flag = true;
+
+		while(flag){
+			try{
 				Socket socket = listener.accept();
-				System.out.println("new connection");
+				System.out.print (CSI + "32" + "m");
+				System.out.println("\tNew connection");
+				System.out.print(CSI + "m");
 
 				// criacao das threads
 				ClientHandler client = new ClientHandler(socket, dataBaseServer, receiveCasesList);
-				Thread clientHandlerThread = new Thread(client);
-				SendProportionHandler sendProportionHandler = new SendProportionHandler(socket, clientHandlerThread, receiveCasesList);
+				Thread clientThread = new Thread(client);
+				SendProportionHandler sendProportionHandler = new SendProportionHandler(socket, clientThread, receiveCasesList);
 				Thread sendProportionThread = new Thread(sendProportionHandler);
 
 				//inicio
-				clientHandlerThread.start();
+				clientThread.start();
 				sendProportionThread.start();
 
-				receiveCasesList.incrementThreads();
+				receiveCasesList.incrementThreads(); // incremento o numero de utilizadores ligados
+				
+				if("quit".equals("or")){
+					flag = false;
+				}
+			}	
+			catch(IOException e){
+				System.out.println("Error accepting the connection");
 			}	
 		}
-		catch(NumberFormatException e){
-			System.out.println(e.getMessage());
-		}
-		catch(NumberPortInvalidException e){
-			System.out.println(e.getMessage());
+
+		try{
+			listener.close();
 		}
 		catch(IOException e){
-			System.out.println(e.getMessage());
-			e.printStackTrace();
-		}
+			System.out.println("Error closing listener");
+			System.exit(1);
+		}		
 	}
 
 
@@ -260,13 +353,18 @@ class NumberPortInvalidException extends Exception{
 		super(s);
 	}
 }
+class NumberInvalidException extends Exception{
+	NumberInvalidException(String s){
+		super(s);
+	}
+}
 
 class Util{
-	public static int parseInt(String s) throws NumberFormatException, NumberPortInvalidException{
+	public static int verifyPort(String s) throws NumberFormatException, NumberPortInvalidException{
 		try{
 			int n = Integer.parseInt(s);
 			if(n<3000){
-				throw new NumberPortInvalidException("Numero da porta maior que 1000");
+				throw new NumberPortInvalidException("Numero da porta Tem de ser maior que 3000");
 			}		
 			else
 				return n;
@@ -275,6 +373,42 @@ class Util{
 			throw new NumberFormatException("Porta tem de ser um número inteiro");
 		}
 		
+	}
+
+	public static int verifyNumberOption(String s) throws NumberFormatException, NumberInvalidException {
+		int n = 0;
+		try{
+			n = Integer.parseInt(s);
+			if(n == 1 || n == 0){
+				return n;
+			}
+			else{
+				throw new NumberInvalidException("Opcao tem de ser 0 ou 1");
+			}
+		}
+		catch(NumberFormatException e){
+			throw new NumberFormatException("Numero tem de ser um inteiro");
+		}
+	}
+
+	public static int verifyCases(String msg, int contacts) throws NumberFormatException, NumberInvalidException{
+		int cases = 0;
+		try{
+			cases = Integer.parseInt(msg);
+			if(cases >= 0 && cases <= contacts){
+				return cases;
+			}
+			else if(cases < 0 )
+				throw new NumberInvalidException("Número de casos não pode ser negativo!");
+			else if(cases > contacts)
+				throw new NumberInvalidException("Número de casos não pode ser superior aos contactos!");
+			else{
+				throw new NumberInvalidException("Erro no numero de casos");
+			}
+		}
+		catch(NumberFormatException e){
+			throw new NumberFormatException("Numero tem de ser um inteiro");
+		}
 	}
 }
 
