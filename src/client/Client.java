@@ -251,4 +251,15 @@ class UtilClient{
 }
 
 
+class NumberPortInvalidException extends Exception{
+	NumberPortInvalidException(String s){
+		super(s);
+	}
+}
+class NumberInvalidException extends Exception{
+	NumberInvalidException(String s){
+		super(s);
+	}
+}
+
 //javac DataBaseServejava; javac ClientData.java; javac Server.java; javac Client.java 
