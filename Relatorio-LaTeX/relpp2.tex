@@ -1,0 +1,241 @@
+\documentclass[11pt, a4paper]{report}
+\usepackage[portuges]{babel}
+\usepackage[latin1]{inputenc}
+\usepackage{fancyvrb} 
+\usepackage{listings}
+\usepackage{pdfpages}
+\usepackage{graphicx}
+\setlength{\parskip}{2mm}
+\usepackage[a4paper,top=1.5cm,bottom=2cm,left=2cm,right=2cm]{geometry}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage [ nottoc ] { tocbibind }
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{soul}
+\usepackage{float}
+
+
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+\usepackage{natbib}
+
+
+\parindent=0pt
+\parskip=2pt
+
+\setlength{\parindent}{1cm}
+
+
+\begin{document}
+
+% capa
+	\begin{titlepage} %iniciando a "capa"
+	\begin{center} %centralizar o texto abaixo
+	
+	{\large Universidade do Minho}\\[0.2cm] %0,2cm é a distância entre o texto dessa linha e o texto da 			próxima
+	{\large Escola de Engenharia}\\[0.2cm] % o comando \\ "manda" o texto ir para próxima linha
+	{\large Mestrado Integrado em Engenharia de Telecomunicações e Informática}\\[3cm]
+	{\bf Sistemas Distribuídos}\\[1.2cm]  %o comando \bf deixa o texto entre chaves em 				negrito. O comando \huge deixa o texto enorme
+	{\bf \huge Estimativa de infetados durante uma pandemia}\\[1.2cm]
+	{\bf \huge Relatório do projeto}\\[7cm]
+	\end{center} %término do comando centralizar
+	
+	{\large Grupo V}\\[0.7cm] % o comando \large deixa o texto grande
+	{\large Bruno Santos     A72122}\\[0.7cm] % o comando \large deixa o texto grande
+	{\large Hugo Reynolds A83924  }\\[0.7cm]
+	{\large Manuel Mendes A77806 }\\[1.2cm]
+	
+	\begin{center}
+	{\large Guimarães}\\[0.2cm]
+	{\large 21 de Maio de 2020}
+	\end{center}
+	\end{titlepage} %término da "capa" 
+
+
+\lstset{frame=tb,
+  language=Java,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+\chapter{Introdução}
+
+Este trabalho, para a unidade curricular de Sistemas Distribuídos, consiste no desenvolvimento de um servidor que permite recolher uma proporção de infetados no decorrer de uma pandemia. Cada cliente deve registar-se e autenticar-se para se ligar ao servidor. Seguidamente, o servidor fica aguardando uma resposta de um cliente que consiste na comunicação de quantos casos de doença este conhece nos seus contactos. Sempre que algum cliente fornece informação ao servidor, este envia a todos os clientes ligados uma nova estimativa da proporção média. Os clientes podem indicar valores de casos de doença as vezes que entenderem até fecharem a conexão.
+
+Para o respetivo projeto, foram elaborados os programas Servidor e Cliente em linguagem Java.
+
+Como controle de versões, decidimos utilizar o \textit{gitHub}. O repositório do presente projeto é: \url{https://github.com/BrunoXBSantos/Distributed-Systems-Java.git}.
+
+Para a elaboração do presente relatório, optamos por utilizar o software \LaTeX. Sendo este software uma excelente forma de produzir trabalhos científicos, relatórios e textos académicos com excelente qualidade.
+
+
+
+
+
+\chapter{Programa Servidor}
+
+O cerne do presente projeto foi o desenvolvimento de um servidor que permitisse recolher estimativas da proporção de infectados numa pandemia.
+
+O programa Servidor é composto por oito classes, sendo elas: a classe \textit{Server} que contêm o método \textit{main()}, as classes \textit{DataBaseServer} e \textit{ClientData} responsáveis por armazenar informação relativa aos clientes, a classe \textit{Connection}, a classe \textit{LoggedClients} e as classes \textit{ClientHandler} e \textit{SendClient} que implementam a interface \textit{Runnable} cujas instâncias são executadas por \textit{threads}. 
+
+O servidor implementado comunica com os clientes através de \textit{sockets TCP}, formando uma conexão segura e viável para a troca de mensagens. 
+
+No método \textit{main()} e através da classe \textit{ServerSocket} e do seu construtor, é criado o Servidor. O construtor desta classe recebe como paramento o número da porta que ficará à escuta (tem que ser um número superior a 2000), cria o socket e realiza o \textit{bind} e o \textit{listen}, ficando o servidor pronto para aceitar conexões.
+
+Depois de aceite a conexão de um cliente, o método \textit{accept()} devolve um socket para que a comunicação entre o servidor e o cliente seja possível. Uma vez que o servidor pode comunicar com mais do que um cliente ao mesmo tempo, a comunicação entre o servidor e o respetivo cliente aceite é processada numa \textit{thread}. A classe cuja instância é executada na thread designa-se \textit{ClientHandler} e recebe como argumento o socket devolvido pelo método \textit{accept()}, a base de dados onde os clientes estão registados, uma lista com os clientes autenticados e o id do próximo cliente. Depois de iniciada a respetiva thread, a thread principal do programa (que executa o método \textit{main()}) fica bloqueada, passivamente, no método \textit{accept()} à espera de novas conexões.
+
+Um dos requisitos do protejo consiste no registo prévio de um cliente antes de começar a enviar estimativas para o servidor. As classes que permitem o registo de clientes e a manipulação dos seus dados são a classe \textit{DataBaseServer} e a classe \textit{ClientData}.
+
+A classe \textit{ClientData} contém as informações de um cliente, sendo as suas variáveis de instância; a password, o seu id, o número de contactos conhecidos (por defeito \textit{int contacts = 150}), o número de casos reportados pelo cliente e um lock explicito. Os métodos de instância desta classe permitem aceder e/ou modificar o conteúdo das variáveis de instância. O método \textit{void lock()} e \textit{void unlock()} permitem obter o lock e o unlock, respetivamente, do objeto da classe \textit{ClientData}.
+
+A classe \textit{DataBaseServer} tem como variáveis de instância: 
+\begin{lstlisting}
+	private HashMap<String, ClientData> clientsList;  // lista de clientes
+	private String serverName;
+	private ReentrantLock dataBaseServer;
+\end{lstlisting}
+
+A variável \textit{clientsList} armazena os clientes registados num \textit{HashMap}. A cada nome registado faz a correspondência ao objeto \textit{ClientData} que guarda as informações do respetivo cliente. A variável \textit{dataBaseServer} é um lock explicito.
+
+Nesta classe, tem como métodos mais relevantes: \textit{boolean createClient( ... )}, \textit{boolean checkPassword( ... )} e \textit{double proportionCasesReported()}. 
+
+O método \textit{boolean createClient( ... )} permite criar um cliente novo e inseri-lo no \textit{HashMap} que contem todos os clientes registados. Para verificar se o cliente a ser criado já existe ou inseri-lo no HashMap caso contrário, é necessário fazer o lock do objeto \textit{DataBaseServer} no início do método e, no fim, fazer o unlock. 
+
+O método \textit{double proportionCasesReported()} permite obter a estimativa atual e encontra-se a seguir:
+
+\begin{lstlisting}
+public double proportionCasesReported(){
+		this.dataBaseServer.lock();
+	    // after locking the dataBaseServer we know that no account can be created or deleted, and thus `locked` is all existing accounts
+		Set<String> locked = this.clientsList.keySet();
+		// lock all accounts
+		for(String name : locked){
+			this.clientsList.get(name).lock();
+		}
+		this.dataBaseServer.unlock(); 
+		// all accounts are locked: we can release the bank lock
+		// compute the total cases
+		int totalCases = 0;
+		int totalContacts = 0;
+		for(String name : locked){
+			ClientData clientData = this.clientsList.get(name);
+			totalCases += clientData.getReportedCases();
+			totalContacts += clientData.getContacts();
+			clientData.unlock();
+		}
+		return (double) totalCases / totalContacts;
+	}
+\end{lstlisting}
+
+Inicialmente é feito o lock do objeto para, durante a obtenção das respetivas contas de todos os clientes, o HashMap não seja manipulado. De seguida é feito o lock de cada conta de cada cliente e guardado em \textit{Set(String) locked}. Liberta-se o objeto que contem o HashMap. De seguida para cada cliente é verificado o número de casos reportados e o número de contactos conhecidos e calculada a respectiva proporção e libertando as respetivas contas. 
+
+Para o controlo de concorrência nas classes \textit{DataBaseServer} e \textit{ClientData}, decidimos utilizar locks explícitos em detrimento da primitiva \textit{syncronized}, uma vez que os locks explícitos permitem que os respetivos objetos possuem mais concorrência. 
+
+Como supramencionado, quando uma conexão é aceite pelo servidor, é executada uma \textit{thread} com uma instância da classe \textit{ClientHandler}. A presente thread fica, passivamente, à espera que o cliente escolhe uma opção (1 - registar, 2 - login ou 0 - Sair). Se o cliente escolher a opção 2, através de uma troca de mensagens entre o cliente e o servidor é realizado o registo do cliente. Se o cliente escolher a opção 1, é feito o respetivo login. No caso do login: depois de o servidor receber a opção 1, fica novamente à espera, passivamente, que o cliente introduza o nome e a sua password. Recebida essa informação no servidor, através da de métodos da classe \textit{StringTokenizer}, é separado o nome e a password e, através de métodos atrás mencionados, da classe \textit{DataBaseServer}, é verificado o login. Se o nome do cliente não existir no HashMap, é enviado para o cliente a string "NE" (Não existe). Se existe o nome mas a password é incorreta, é enviado a string "PI". Se a password for a correta é enviada a string "PC" e o cliente é autenticado com sucesso.   
+
+Para que o servidor tivesse um comportamento assíncrono, ou seja, quando o servidor recebe uma estimativa de um cliente a envia para todos os clientes ligados, foi desenvolvida a classe \textit{LoggedClients}. Esta classe tem como variável de instância \textit{HashMap<Integer, Connection> logged}. Este HashMap guarda o id de todos os clientes conectados. Para cada id de um cliente ligado, associa a extremidade de escrita (out) do socket do respetivo cliente. Os métodos  \textit{void connect(...)} e \textit{void disconnect(...)} permitem adicionar um cliente "online" ou remove-lo.
+
+O método apresentado de seguida, \textit{void sendAll(...)} permite enviar uma estimativa para todos os clientes ligados. 
+\begin{lstlisting}
+public synchronized void sendAll(Integer id, String message) {
+	    for(Integer idClient: this.logged.keySet()) {
+	        Connection connection = this.logged.get(idClient);
+	    	SendClient sendClient = new SendClient(connection, id, message);
+	    	Thread thread = new Thread(sendClient);
+	    	thread.start();
+	    }
+  	}
+\end{lstlisting}
+Este método recebe o id do cliente que envia a estimativa e a estimativa. Para cada id dos clientes ligados (no HashMap logged), é criada uma thread que executa uma instância da classe \textit{SendClient}. Cada thread recebe a extremidade de escrita no socket (out) de cada cliente ligado e a estimativa e procede ao envio da mesma para o cliente. Esta foi a solução encontrada para o envio assíncrono das estimativas para os clientes ligados. Deste modo, nenhum cliente é afetado se algum cliente tiver uma ligação fraca ou, por qualquer outro motivo, uma latência bastante superior em relação aos outros, uma vez que o envia das estimativas é realizado concorrentemente para todos os clientes. 
+
+Para garantir a exclusão mútua na classe \textit{LoggedClients}, foi utilizado a primitiva \textit{syncronized} em todos os métodos.
+
+Um cliente autenticado com sucesso pode enviar várias estimativas. As estimativas enviadas têm de ser um número inteiro não negativo e inferior ao número de contactos conhecidos. Se alguma estimativa não corresponder a estes parâmetros, são enviadas exceções nos respetivos métodos e, posteriormente apanhadas e tratadas, deste modo é assegurada a integridade dos dados armazenados.
+
+Quando um cliente digita "quit", é feito o logout do cliente e este é removido do hashMap logged (contem todos os clientes autenticados), mas o seu registo e os dados manipulados ficam armazenados no programa no HashMap clientsList.     
+
+\chapter{Programa Cliente}
+
+O programa cliente é constituído pelas classes SocketReader, Client e UtilClient.
+
+A classe \textit{Client} contém o método \textit{void main()}. 
+
+A classe \textit{SocketReader} através do método \textit{public void run()}, permite que o cliente possa ler mensagens do servidor.
+
+A classe UtilClient tem vários métodos, como por exemplo: \textit{public static void menu()}, \textit{public static int verifyNumberOption} e \textit{public static boolean verifyCases}, que têm como objetivo assegurar que os dados introduzidos são corretos.
+
+O programa cliente é iniciado com o par: endereço de IP e o número da porta do servidor. De seguida, e através do cosntrutor da classe \textit{Socket} é criado o socket e feito a conexão com o servidor. Com a comunicação TCP estabelecida, na interface do cliente, é apresentado o seguinte menu: 
+ 
+\begin{figure}[H]
+\centering
+\includegraphics[scale=1]{Imagens/menu.png}
+\caption{Menu - programa cliente)}
+\label{Rotulo}
+\end{figure} 
+
+Para um cliente enviar estimativas, é necessário fazer o registo previamente. Para o registo ou o login, é efetuada uma troca de mensagens com o utilizador, exemplificada no capitulo anterior. 
+
+Após a autenticação efetuada com sucesso, e como o servidor é assíncrono, é iniciada uma thread sobre uma variavél de instancia da classe \textit{SocketReader}. Esta thread, tem como objetivo receber mensagens enviadas do servidor. Enquanto o servidor não envia mensagens, a presente thread faz uma espera passiva na instrução \textit{String msg = this.in.readLine();}.
+
+\begin{lstlisting}
+if(connected){
+	    	Thread reader = new Thread(new SocketReader(in));
+	    	reader.start();
+}
+\end{lstlisting}
+
+A qualquer momento, o cliente pode enviar uma nova estimativa para o servidor.
+
+De seguida, é apresentado algumas imagens dos programas Cliente e Servidor em execução.
+
+\chapter{Análise de resultados}
+
+Na figura seguinte apresenta o programa servidor em execução com dois clientes autenticados. 
+
+\begin{figure}[H]
+\centering
+\includegraphics[scale=0.8]{Imagens/2servidor.png}
+\caption{Servidor - Autenticações}
+\label{Rotulo}
+\end{figure} 
+
+Na figura 3.3 mostra o registo no programa cliente de uma utilizador cujo nome é \textit{Bruno}. De seguida recebe duas estimativas do servidor. Cada estimativa contêm a proporção de infetados atual e a data calculada da respetiva estimativa. 
+
+\begin{figure}[H]
+\centering
+\includegraphics[scale=0.7]{Imagens/3cliente.png}
+\caption{Cliente - 2 estimativas}
+\label{Rotulo}
+\end{figure} 
+
+Na figura 3.4 apresenta algumas mensagens trocadas entres os clientes e o servidor. Por exemplo, os utilizadores pedro e flavia comunicaram que todos os contactos conhecidos estão infetados e o utilizador Bruno fez \textit{logout}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[scale=0.8]{Imagens/4servidor.png}
+\caption{Servidor - 2 estimativas}
+\label{Rotulo}
+\end{figure} 
+
+
+\end{document}
